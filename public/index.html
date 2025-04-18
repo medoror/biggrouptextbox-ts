@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BigGroupTextBox</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    
+    .header {
+      background-color: #f8f8f8;
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .textbox {
+      flex-grow: 1;
+      width: 100%;
+      height: calc(100% - 50px);
+      padding: 0;
+      margin: 0;
+      border: none;
+      outline: none;
+      resize: none;
+      font-size: 16px;
+      box-sizing: border-box;
+      padding: 10px;
+    }
+    
+    .status {
+      padding: 5px 10px;
+      font-size: 14px;
+      color: #666;
+    }
+    
+    .online-count {
+      padding: 5px 10px;
+      font-size: 14px;
+      color: #4CAF50;
+    }
+    
+    .share-box {
+      display: flex;
+      align-items: center;
+    }
+    
+    #share-url {
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      width: 250px;
+      margin-right: 5px;
+    }
+    
+    .copy-btn {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    .copy-btn:hover {
+      background-color: #45a049;
+    }
+    
+    @media (max-width: 600px) {
+      .header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .share-box {
+        margin-top: 10px;
+      }
+      
+      #share-url {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <span class="status" id="status">Connecting...</span>
+        <span class="online-count" id="online-count"></span>
+      </div>
+      <div class="share-box">
+        <input type="text" id="share-url" readonly>
+        <button class="copy-btn" id="copy-btn">Copy</button>
+      </div>
+    </div>
+    <textarea class="textbox" id="textbox" spellcheck="true" autofocus></textarea>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const status = document.getElementById('status');
+      const onlineCount = document.getElementById('online-count');
+      const textbox = document.getElementById('textbox');
+      const shareUrl = document.getElementById('share-url');
+      const copyBtn = document.getElementById('copy-btn');
+      
+      // Get the box ID from the URL
+      const path = window.location.pathname;
+      const boxId = path.substring(path.lastIndexOf('/') + 1);
+      
+      // Set the share URL
+      shareUrl.value = window.location.href;
+      
+      // Copy URL button
+      copyBtn.addEventListener('click', () => {
+        shareUrl.select();
+        document.execCommand('copy');
+        
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => {
+          copyBtn.textContent = 'Copy';
+        }, 2000);
+      });
+      
+      // Connect WebSocket
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}`;
+      const socket = new WebSocket(wsUrl);
+      
+      socket.onopen = () => {
+        status.textContent = 'Connected';
+        status.style.color = '#4CAF50';
+        
+        // Join this specific box room
+        socket.send(JSON.stringify({
+          type: 'join',
+          boxId: boxId
+        }));
+        
+        // Fetch initial content
+        fetch(`/api/box/${boxId}`)
+          .then(response => response.json())
+          .then(data => {
+            textbox.value = data.text;
+          })
+          .catch(error => {
+            console.error('Error fetching text:', error);
+          });
+      };
+      
+      socket.onclose = () => {
+        status.textContent = 'Disconnected';
+        status.style.color = '#f44336';
+      };
+      
+      // Handle user count updates
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'userCount') {
+          onlineCount.textContent = `${data.count} online`;
+        } else if (data.type === 'textUpdate') {
+          const cursorPosition = textbox.selectionStart;
+          textbox.value = data.text;
+          textbox.setSelectionRange(cursorPosition, cursorPosition);
+        }
+      };
+      
+      // Debounce function to limit update frequency
+      function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+      }
+      
+      // Send updates when text changes (debounced)
+      const sendUpdate = debounce(() => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({
+            type: 'textUpdate',
+            text: textbox.value
+          }));
+        }
+      }, 100);
+      
+      textbox.addEventListener('input', sendUpdate);
+    });
+  </script>
+</body>
+</html>
