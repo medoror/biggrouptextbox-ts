@@ -42,6 +42,26 @@
       box-sizing: border-box;
       padding: 10px;
     }
+
+    footer {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      background-color: #f8f8f8;
+      padding: 10px;
+      text-align: center;
+      border-top: 1px solid #ddd;
+      font-size: 14px;
+    }
+
+    footer a {
+      color: #4CAF50;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
     
     .status {
       padding: 5px 10px;
@@ -206,5 +226,8 @@
       textbox.addEventListener('input', sendUpdate);
     });
   </script>
+  <footer>
+    Big Group Text Box - A Distributed Version of <a href="https://bigtextbox.com">Big Text Box</a>
+  </footer>
 </body>
 </html>
